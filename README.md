@@ -241,6 +241,31 @@ export function LogoutButton() {
 
 ---
 
+## Turning Protection Off
+
+Protection is controlled by the `PROTECTION_ENABLED` environment variable. If it's set to `"false"`, the middleware lets everyone through — no password needed.
+
+### On Vercel
+
+1. Go to **vercel.com** → your project → **Settings** → **Environment Variables**
+2. Add a new variable:
+   - **Name:** `PROTECTION_ENABLED`
+   - **Value:** `false`
+3. Redeploy (Settings → Deployments → click the three dots on the latest → Redeploy)
+
+Your site is now public. To turn protection back on, change the value to `true` (or delete the variable — protection is on by default).
+
+### Recommended setup
+
+| Environment | `PROTECTION_ENABLED` | Result |
+|---|---|---|
+| Preview deployments | `true` (or don't set it) | Password required |
+| Production (custom domain) | `false` | Public, no password |
+
+Vercel lets you set different env var values per environment (Production vs Preview vs Development). Use this to keep previews protected while production is open.
+
+---
+
 ## Multiple Clients, One App
 
 You can have multiple passwords in the same env var. Each maps to a different client:

@@ -1,6 +1,6 @@
 import {
   protectMiddleware
-} from "./chunk-CMUQKBQZ.mjs";
+} from "./chunk-S6H3SO7I.mjs";
 export {
   protectMiddleware
 };

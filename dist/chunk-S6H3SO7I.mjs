@@ -21,6 +21,9 @@ function protectMiddleware(options) {
   const cookieName = options?.cookieName ?? DEFAULT_COOKIE_NAME;
   const publicPaths = options?.publicPaths ?? [];
   return function middleware(req) {
+    if (process.env.PROTECTION_ENABLED === "false") {
+      return NextResponse.next();
+    }
     const { pathname } = req.nextUrl;
     if (pathname.startsWith(loginPath)) return NextResponse.next();
     if (pathname.startsWith("/_next")) return NextResponse.next();

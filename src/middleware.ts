@@ -9,6 +9,11 @@ export function protectMiddleware(options?: ProtectMiddlewareOptions) {
   const publicPaths = options?.publicPaths ?? [];
 
   return function middleware(req: NextRequest) {
+    // Skip protection if disabled via env var
+    if (process.env.PROTECTION_ENABLED === "false") {
+      return NextResponse.next();
+    }
+
     const { pathname } = req.nextUrl;
 
     // Allow public paths
