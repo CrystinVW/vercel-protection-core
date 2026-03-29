@@ -22,7 +22,6 @@
   ],
   "scripts": {
     "build": "tsup",
-    "prepare": "tsup",
     "dev": "tsup --watch"
   },
   "dependencies": {
