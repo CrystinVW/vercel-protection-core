@@ -1,5 +1,3 @@
-import { NextRequest, NextResponse } from 'next/server';
-
 interface ClientEntry {
     password: string;
     role: string;
@@ -23,6 +21,4 @@ interface HandleLoginOptions {
     rateLimitMax?: number;
 }
 
-declare function protectMiddleware(options?: ProtectMiddlewareOptions): (req: NextRequest) => NextResponse<unknown>;
-
-export { type ClientInfo as C, type HandleLoginOptions as H, type ProtectMiddlewareOptions as P, type ClientEntry as a, type ClientPasswordsMap as b, protectMiddleware as p };
+export type { ClientEntry as C, HandleLoginOptions as H, ProtectMiddlewareOptions as P, ClientInfo as a, ClientPasswordsMap as b };

@@ -1,6 +1,8 @@
-import { H as HandleLoginOptions, C as ClientInfo } from './middleware-BsncD9nL.js';
-export { a as ClientEntry, b as ClientPasswordsMap, P as ProtectMiddlewareOptions, p as protectMiddleware } from './middleware-BsncD9nL.js';
+export { protectMiddleware } from './middleware.js';
 import { NextRequest, NextResponse } from 'next/server';
+import { H as HandleLoginOptions } from './types-BVe8T7II.js';
+export { C as ClientEntry, a as ClientInfo, b as ClientPasswordsMap, P as ProtectMiddlewareOptions } from './types-BVe8T7II.js';
+export { g as getClientFromPassword, a as getCurrentClient } from './client-CD1WDK1I.js';
 
 declare function handleLogin(req: NextRequest, options?: HandleLoginOptions): Promise<NextResponse>;
 
@@ -8,7 +10,4 @@ declare function handleLogout(options?: {
     cookieName?: string;
 }): NextResponse;
 
-declare function getClientFromPassword(password: string): Promise<ClientInfo | null>;
-declare function getCurrentClient(cookieName?: string): ClientInfo | null;
-
-export { ClientInfo, HandleLoginOptions, getClientFromPassword, getCurrentClient, handleLogin, handleLogout };
+export { HandleLoginOptions, handleLogin, handleLogout };

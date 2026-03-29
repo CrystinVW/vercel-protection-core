@@ -243,67 +243,150 @@ export function LogoutButton() {
 
 ---
 
-## Vite / React Projects
+## Vite / React / Any Non-Next.js Project
 
-If your project uses **Vite** (not Next.js), you need two extra config files. The issue is that Vite projects often have a `src/pages/` directory, which Next.js misinterprets as its own pages directory. These configs fix that.
+If your project uses Vite, Create React App, or any other framework — **you do not need Next.js**. This package has a separate Vercel-native mode that uses Vercel Serverless Functions directly.
 
-### Extra Step A — Add `next.config.js` to your project root
+### Step 1 — Install the package
 
-Copy this file from the package repo, or create it manually:
-
-```js
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  pageExtensions: ['page.tsx', 'page.ts', 'page.jsx', 'page.js'],
-  async rewrites() {
-    return {
-      fallback: [
-        { source: '/:path*', destination: '/index.html' },
-      ],
-    };
-  },
-};
-
-export default nextConfig;
+```bash
+npm install github:CrystinVW/vercel-protection-core
 ```
 
-**What this does:**
-- `pageExtensions` — tells Next.js to only treat files ending in `.page.tsx` as routes. Your Vite files in `src/pages/` won't conflict.
-- `rewrites.fallback` — after Next.js handles `/login` and `/api/login`, all other routes fall through to `index.html` (your Vite SPA).
+---
 
-### Extra Step B — Add `vercel.json` to your project root
+### Step 2 — Create the login API
+
+Create the file `api/login.ts` in your project root (not `src/api`, just `api/`):
+
+```ts
+import { createLoginHandler } from "@vercel-protection/core/vercel";
+
+export default createLoginHandler();
+```
+
+**What this does:** Creates a Vercel Serverless Function at `/api/login` that validates passwords and sets the auth cookie. No Next.js involved.
+
+---
+
+### Step 3 — Create the logout API
+
+Create the file `api/logout.ts`:
+
+```ts
+import { createLogoutHandler } from "@vercel-protection/core/vercel";
+
+export default createLogoutHandler();
+```
+
+---
+
+### Step 4 — Add `vercel.json` to your project root
 
 ```json
 {
-  "framework": "nextjs",
-  "buildCommand": "vite build && cp -r dist/* public/ && next build",
-  "installCommand": "npm install"
+  "rewrites": [
+    { "source": "/api/login", "destination": "/api/login" },
+    { "source": "/api/logout", "destination": "/api/logout" }
+  ],
+  "redirects": [
+    {
+      "source": "/((?!api|login\\.html|assets|favicon\\.ico).*)",
+      "has": [{ "type": "cookie", "key": "auth", "value": "" }],
+      "missing": [{ "type": "cookie", "key": "auth" }],
+      "destination": "/login.html",
+      "permanent": false
+    }
+  ]
 }
 ```
 
 **What this does:**
-1. Builds your Vite app first
-2. Copies the Vite output into `public/` (where Next.js serves static files)
-3. Then builds Next.js (which handles the middleware + login routes)
+- Routes `/api/login` and `/api/logout` to your serverless functions
+- Redirects unauthenticated users (no `auth` cookie) to `/login.html`
+- Lets static assets, favicon, and the login page itself load without auth
 
-### Extra Step C — Install Next.js as a dependency
+---
+
+### Step 5 — Create a login page
+
+Create `public/login.html` (or wherever your static files live):
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    form { display: flex; flex-direction: column; gap: 1rem; width: 300px; }
+    input { padding: 0.75rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 4px; }
+    button { padding: 0.75rem; font-size: 1rem; background: #000; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    .error { color: red; margin: 0; }
+  </style>
+</head>
+<body>
+  <form id="login-form">
+    <h1>Login</h1>
+    <input type="password" id="password" placeholder="Enter password" required />
+    <button type="submit">Sign in</button>
+    <p class="error" id="error" hidden></p>
+  </form>
+  <script>
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const error = document.getElementById('error');
+      error.hidden = true;
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: document.getElementById('password').value }),
+      });
+      const data = await res.json();
+      if (!res.ok) { error.textContent = data.error; error.hidden = false; return; }
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>
+```
+
+Customize this with your client's branding. It's plain HTML — no framework needed.
+
+---
+
+### Step 6 — Generate a password hash and add the env var
+
+Same as the Next.js setup:
 
 ```bash
-npm install next
+node -e "require('bcryptjs').hash('the-password-you-want', 10).then(h => console.log(h))"
 ```
+
+Then on Vercel → Settings → Environment Variables:
+- **Name:** `CLIENT_PASSWORDS`
+- **Value:** `{"client-name":{"password":"$2a$10$THE_HASH","role":"admin"}}`
+
+---
+
+### Step 7 — Deploy
+
+Push to GitHub. Vercel deploys automatically. Unauthenticated visitors get redirected to your login page.
+
+---
 
 ### Summary: Files needed for a Vite project
 
 | File | Purpose |
 |---|---|
-| `middleware.ts` | Redirects unauthenticated users to `/login` |
-| `app/api/login/route.ts` | Handles password validation |
-| `app/api/logout/route.ts` | Handles logout |
-| `app/login/page.tsx` | The login page |
-| `next.config.js` | **Vite-specific** — prevents Next.js from conflicting with `src/pages/` |
-| `vercel.json` | **Vite-specific** — tells Vercel to build Vite first, then Next.js |
+| `api/login.ts` | Vercel Serverless Function — validates passwords |
+| `api/logout.ts` | Vercel Serverless Function — clears cookie |
+| `public/login.html` | Login page (plain HTML, customize with client branding) |
+| `vercel.json` | Routes API calls + redirects unauthenticated users |
 
-Everything else (Steps 1-11 above) is the same.
+**No Next.js. No middleware.ts. No app/ directory.**
 
 ---
 
@@ -355,6 +438,8 @@ When a user logs in with Acme's password, `getCurrentClient()` returns `{ name: 
 
 ## API Reference
 
+### Next.js imports
+
 | Export | Import from | Description |
 |---|---|---|
 | `protectMiddleware(options?)` | `@vercel-protection/core/middleware` | Middleware factory. Redirects unauthenticated users to login. |
@@ -362,6 +447,14 @@ When a user logs in with Acme's password, `getCurrentClient()` returns `{ name: 
 | `handleLogout(options?)` | `@vercel-protection/core` | Clears the auth cookie. |
 | `getCurrentClient(cookieName?)` | `@vercel-protection/core` | Returns `{ name, role }` or `null`. |
 | `getClientFromPassword(password)` | `@vercel-protection/core` | Async. Returns `{ name, role }` or `null`. |
+
+### Vercel-native imports (Vite / non-Next.js)
+
+| Export | Import from | Description |
+|---|---|---|
+| `createLoginHandler(options?)` | `@vercel-protection/core/vercel` | Returns a Vercel Serverless Function handler for login. |
+| `createLogoutHandler(options?)` | `@vercel-protection/core/vercel` | Returns a Vercel Serverless Function handler for logout. |
+| `getClientFromPassword(password)` | `@vercel-protection/core/vercel` | Async. Returns `{ name, role }` or `null`. |
 
 ### Options
 
