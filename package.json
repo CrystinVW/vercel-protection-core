@@ -18,7 +18,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "next.config.js"
   ],
   "scripts": {
     "build": "tsup",

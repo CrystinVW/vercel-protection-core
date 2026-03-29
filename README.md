@@ -6,11 +6,13 @@ Each password maps to a client identity and role, so you can customize branding,
 
 ## How It Works
 
-You have a Next.js project on GitHub, connected to Vercel. This package adds a password gate in front of it. Visitors see a login page. They enter a password. If it matches, they get in. Each password identifies a specific client.
+You have a project on GitHub, connected to Vercel. This package adds a password gate in front of it. Visitors see a login page. They enter a password. If it matches, they get in. Each password identifies a specific client.
+
+Works with **Next.js** projects and **Vite/React** projects (see [Vite Setup](#vite--react-projects) below).
 
 ---
 
-## Step-by-Step: Protect a Vercel Project
+## Step-by-Step: Protect a Next.js Vercel Project
 
 For each GitHub repo / Vercel project you want to protect, follow these steps in that repo's codebase.
 
@@ -238,6 +240,70 @@ export function LogoutButton() {
   return <button onClick={handleLogout}>Logout</button>;
 }
 ```
+
+---
+
+## Vite / React Projects
+
+If your project uses **Vite** (not Next.js), you need two extra config files. The issue is that Vite projects often have a `src/pages/` directory, which Next.js misinterprets as its own pages directory. These configs fix that.
+
+### Extra Step A — Add `next.config.js` to your project root
+
+Copy this file from the package repo, or create it manually:
+
+```js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  pageExtensions: ['page.tsx', 'page.ts', 'page.jsx', 'page.js'],
+  async rewrites() {
+    return {
+      fallback: [
+        { source: '/:path*', destination: '/index.html' },
+      ],
+    };
+  },
+};
+
+export default nextConfig;
+```
+
+**What this does:**
+- `pageExtensions` — tells Next.js to only treat files ending in `.page.tsx` as routes. Your Vite files in `src/pages/` won't conflict.
+- `rewrites.fallback` — after Next.js handles `/login` and `/api/login`, all other routes fall through to `index.html` (your Vite SPA).
+
+### Extra Step B — Add `vercel.json` to your project root
+
+```json
+{
+  "framework": "nextjs",
+  "buildCommand": "vite build && cp -r dist/* public/ && next build",
+  "installCommand": "npm install"
+}
+```
+
+**What this does:**
+1. Builds your Vite app first
+2. Copies the Vite output into `public/` (where Next.js serves static files)
+3. Then builds Next.js (which handles the middleware + login routes)
+
+### Extra Step C — Install Next.js as a dependency
+
+```bash
+npm install next
+```
+
+### Summary: Files needed for a Vite project
+
+| File | Purpose |
+|---|---|
+| `middleware.ts` | Redirects unauthenticated users to `/login` |
+| `app/api/login/route.ts` | Handles password validation |
+| `app/api/logout/route.ts` | Handles logout |
+| `app/login/page.tsx` | The login page |
+| `next.config.js` | **Vite-specific** — prevents Next.js from conflicting with `src/pages/` |
+| `vercel.json` | **Vite-specific** — tells Vercel to build Vite first, then Next.js |
+
+Everything else (Steps 1-11 above) is the same.
 
 ---
 
