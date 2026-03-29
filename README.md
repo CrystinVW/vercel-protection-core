@@ -254,34 +254,40 @@ If your project uses Vite, Create React App, or any other framework — **you do
 >
 > Instead, follow the steps below which use Vercel Serverless Functions (no Next.js).
 
-### Step 1 — Install the package
+### Step 1 — Install
 
 ```bash
-npm install github:CrystinVW/vercel-protection-core
+npm install github:CrystinVW/vercel-protection-core bcryptjs
 ```
+
+**You must install `bcryptjs` as a direct dependency.** Vercel's function bundler may not resolve it from nested `node_modules` inside the package.
 
 ---
 
 ### Step 2 — Create the login API
 
-Create the file `api/login.ts` in your **project root** (not `src/api/`, just `api/`). Vercel automatically turns files in the `api/` folder into serverless functions:
+Create the file `api/login.js` in your **project root** (not `src/api/`, just `api/`). Vercel automatically turns files in the `api/` folder into serverless functions.
 
-```ts
+Use `.js` extension (not `.ts`) to avoid TypeScript issues with Vercel's bundler:
+
+```js
 import { createLoginHandler } from "@vercel-protection/core/vercel";
-export default createLoginHandler();
+const handler = createLoginHandler();
+export default handler;
 ```
 
-**What this does:** Creates a Vercel Serverless Function at `/api/login` that validates passwords and sets the auth cookie. No Next.js involved.
+**What this does:** Creates a Vercel Serverless Function at `/api/login` that validates passwords and sets the auth cookie.
 
 ---
 
 ### Step 3 — Create the logout API
 
-Create the file `api/logout.ts` (also in the root `api/` folder):
+Create the file `api/logout.js` (also in the root `api/` folder):
 
-```ts
+```js
 import { createLogoutHandler } from "@vercel-protection/core/vercel";
-export default createLogoutHandler();
+const handler = createLogoutHandler();
+export default handler;
 ```
 
 ---
@@ -292,13 +298,16 @@ If you already have a `vercel.json`, merge these settings into it. Otherwise cre
 
 ```json
 {
+  "buildCommand": "vite build",
+  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/login", "destination": "/api/login" },
-    { "source": "/api/logout", "destination": "/api/logout" }
+    { "source": "/api/logout", "destination": "/api/logout" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "redirects": [
     {
-      "source": "/((?!api|login\\.html|assets|favicon\\.ico).*)",
+      "source": "/((?!api|login\\.html|assets|images|favicon\\.ico|\\.js$|\\.css$).*)",
       "missing": [{ "type": "cookie", "key": "auth" }],
       "destination": "/login.html",
       "permanent": false
@@ -309,16 +318,17 @@ If you already have a `vercel.json`, merge these settings into it. Otherwise cre
 
 **What this does:**
 - Routes `/api/login` and `/api/logout` to your serverless functions
+- All other routes fall through to `index.html` (your Vite SPA)
 - Redirects unauthenticated users (no `auth` cookie) to `/login.html`
-- Lets static assets, favicon, and the login page itself load without auth
+- Lets static assets, favicon, JS, CSS, and the login page itself load without auth
 
-> **Note:** If you already have `rewrites` or `redirects` in your `vercel.json`, add these entries to the existing arrays — don't replace them.
+> **Do NOT set `"framework": "vite"`** — it causes Vercel to re-bundle API functions and strip dependencies.
 
 ---
 
 ### Step 5 — Create a login page
 
-Create `public/login.html` (or wherever your static files live):
+Create `public/login.html` in your project:
 
 ```html
 <!DOCTYPE html>
@@ -365,15 +375,21 @@ Customize this with your client's branding. It's plain HTML — no framework nee
 
 ---
 
-### Step 6 — Generate a password hash and add the env var
+### Step 6 — Generate a password hash and set the env var
 
-Same as the Next.js setup:
+Generate a bcrypt hash:
 
 ```bash
-node -e "require('bcryptjs').hash('the-password-you-want', 10).then(h => console.log(h))"
+node -e "console.log(require('bcryptjs').hashSync('your-password', 10))"
 ```
 
-Then on Vercel → Settings → Environment Variables:
+Set it on Vercel. **Use `printf` instead of `echo`** to avoid `$` characters getting mangled by the shell:
+
+```bash
+printf '{"client-name":{"password":"PASTE_HASH_HERE","role":"admin"}}' | vercel env add CLIENT_PASSWORDS production
+```
+
+Or set it in the Vercel dashboard: **Settings → Environment Variables → Add**:
 - **Name:** `CLIENT_PASSWORDS`
 - **Value:** `{"client-name":{"password":"$2a$10$THE_HASH","role":"admin"}}`
 
@@ -381,7 +397,27 @@ Then on Vercel → Settings → Environment Variables:
 
 ### Step 7 — Deploy
 
-Push to GitHub. Vercel deploys automatically. Unauthenticated visitors get redirected to your login page.
+For Vite projects, use **prebuilt deployment** to prevent Vercel from re-bundling the API functions and stripping dependencies:
+
+```bash
+# Build locally
+VERCEL_ENV=production npx vercel build --prod
+
+# Inject dependencies into function bundles
+for fn in login logout; do
+  FUNC_DIR=".vercel/output/functions/api/${fn}.func"
+  mkdir -p "$FUNC_DIR/node_modules/@vercel-protection/core"
+  mkdir -p "$FUNC_DIR/node_modules/bcryptjs"
+  cp -r node_modules/@vercel-protection/core/dist "$FUNC_DIR/node_modules/@vercel-protection/core/"
+  cp node_modules/@vercel-protection/core/package.json "$FUNC_DIR/node_modules/@vercel-protection/core/"
+  cp -r node_modules/bcryptjs/* "$FUNC_DIR/node_modules/bcryptjs/"
+done
+
+# Deploy prebuilt
+vercel deploy --prebuilt --prod
+```
+
+**Why?** Vercel's Vite adapter doesn't bundle `node_modules` into serverless functions reliably. The prebuilt approach builds locally where dependencies resolve correctly, then deploys the output directly.
 
 ---
 
@@ -389,8 +425,8 @@ Push to GitHub. Vercel deploys automatically. Unauthenticated visitors get redir
 
 | File | Purpose |
 |---|---|
-| `api/login.ts` | Vercel Serverless Function — validates passwords |
-| `api/logout.ts` | Vercel Serverless Function — clears cookie |
+| `api/login.js` | Vercel Serverless Function — validates passwords |
+| `api/logout.js` | Vercel Serverless Function — clears cookie |
 | `public/login.html` | Login page (plain HTML, customize with client branding) |
 | `vercel.json` | Routes API calls + redirects unauthenticated users |
 
@@ -442,7 +478,20 @@ When a user logs in with Acme's password, `getCurrentClient()` returns `{ name: 
 - **Bcrypt hashing** — passwords are never stored in plain text
 - **Rate limiting** — after 5 failed attempts in 15 minutes, the login endpoint returns 429 (Too Many Requests)
 - **HttpOnly cookies** — the auth cookie can't be read by JavaScript in the browser
-- **Edge-safe middleware** — the redirect logic runs at the edge for fast response times
+- **Edge-safe middleware** — the redirect logic runs at the edge for fast response times (Next.js only)
+
+---
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|---|---|---|
+| `MIDDLEWARE_INVOCATION_FAILED` | `middleware.ts` exists in a Vite project | Delete `middleware.ts` — use `vercel.json` redirects instead |
+| `FUNCTION_INVOCATION_FAILED` | Dependencies not bundled in serverless functions | Use prebuilt deploy with manual dep injection (Step 7 above) |
+| `does not provide an export named 'compare'` | Old package version with CJS/ESM bug | `rm -rf node_modules package-lock.json && npm install` |
+| `CLIENT_PASSWORDS is not set` | Missing env var on Vercel | `vercel env add CLIENT_PASSWORDS production` |
+| `CLIENT_PASSWORDS is not valid JSON` | `$` chars mangled by shell | Use `printf` instead of `echo` when setting the env var |
+| `Cannot find module '@vercel-protection/core/vercel'` | Old cached package version | `rm -rf node_modules package-lock.json && npm install` |
 
 ---
 
@@ -468,14 +517,14 @@ When a user logs in with Acme's password, `getCurrentClient()` returns `{ name: 
 
 ### Options
 
-**protectMiddleware**
+**protectMiddleware** (Next.js only)
 | Option | Default | Description |
 |---|---|---|
 | `loginPath` | `"/login"` | Where to redirect unauthenticated users |
 | `cookieName` | `"auth"` | Name of the auth cookie |
 | `publicPaths` | `[]` | Paths that don't require authentication |
 
-**handleLogin**
+**handleLogin / createLoginHandler**
 | Option | Default | Description |
 |---|---|---|
 | `cookieName` | `"auth"` | Name of the auth cookie |
