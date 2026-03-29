@@ -247,6 +247,13 @@ export function LogoutButton() {
 
 If your project uses Vite, Create React App, or any other framework — **you do not need Next.js**. This package has a separate Vercel-native mode that uses Vercel Serverless Functions directly.
 
+> **IMPORTANT: Do NOT use the Next.js files in a Vite project.**
+> If you have any of these files, **delete them** — they will cause a 500 MIDDLEWARE_INVOCATION_FAILED error:
+> - `middleware.ts` — this is a Next.js concept, Vite doesn't support it
+> - `app/` directory with `api/login/route.ts`, `api/logout/route.ts`, or `login/page.tsx`
+>
+> Instead, follow the steps below which use Vercel Serverless Functions (no Next.js).
+
 ### Step 1 — Install the package
 
 ```bash
@@ -257,11 +264,10 @@ npm install github:CrystinVW/vercel-protection-core
 
 ### Step 2 — Create the login API
 
-Create the file `api/login.ts` in your project root (not `src/api`, just `api/`):
+Create the file `api/login.ts` in your **project root** (not `src/api/`, just `api/`). Vercel automatically turns files in the `api/` folder into serverless functions:
 
 ```ts
 import { createLoginHandler } from "@vercel-protection/core/vercel";
-
 export default createLoginHandler();
 ```
 
@@ -271,17 +277,18 @@ export default createLoginHandler();
 
 ### Step 3 — Create the logout API
 
-Create the file `api/logout.ts`:
+Create the file `api/logout.ts` (also in the root `api/` folder):
 
 ```ts
 import { createLogoutHandler } from "@vercel-protection/core/vercel";
-
 export default createLogoutHandler();
 ```
 
 ---
 
 ### Step 4 — Add `vercel.json` to your project root
+
+If you already have a `vercel.json`, merge these settings into it. Otherwise create a new one:
 
 ```json
 {
@@ -292,7 +299,6 @@ export default createLogoutHandler();
   "redirects": [
     {
       "source": "/((?!api|login\\.html|assets|favicon\\.ico).*)",
-      "has": [{ "type": "cookie", "key": "auth", "value": "" }],
       "missing": [{ "type": "cookie", "key": "auth" }],
       "destination": "/login.html",
       "permanent": false
@@ -305,6 +311,8 @@ export default createLogoutHandler();
 - Routes `/api/login` and `/api/logout` to your serverless functions
 - Redirects unauthenticated users (no `auth` cookie) to `/login.html`
 - Lets static assets, favicon, and the login page itself load without auth
+
+> **Note:** If you already have `rewrites` or `redirects` in your `vercel.json`, add these entries to the existing arrays — don't replace them.
 
 ---
 
@@ -392,17 +400,19 @@ Push to GitHub. Vercel deploys automatically. Unauthenticated visitors get redir
 
 ## Turning Protection Off
 
+### Next.js projects
+
 Protection is controlled by the `PROTECTION_ENABLED` environment variable. If it's set to `"false"`, the middleware lets everyone through — no password needed.
 
-### On Vercel
-
 1. Go to **vercel.com** → your project → **Settings** → **Environment Variables**
-2. Add a new variable:
-   - **Name:** `PROTECTION_ENABLED`
-   - **Value:** `false`
-3. Redeploy (Settings → Deployments → click the three dots on the latest → Redeploy)
+2. Add: `PROTECTION_ENABLED` = `false`
+3. Redeploy
 
-Your site is now public. To turn protection back on, change the value to `true` (or delete the variable — protection is on by default).
+To turn it back on, change to `true` or delete the variable.
+
+### Vite / non-Next.js projects
+
+Remove or comment out the `redirects` block in your `vercel.json` and redeploy. Without the redirect, visitors go straight to your app.
 
 ### Recommended setup
 
