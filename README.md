@@ -434,11 +434,11 @@ vercel deploy --prebuilt --prod
 
 ---
 
-## Turning Protection Off
+## Disabling Protection (Making Site Public)
 
 ### Next.js projects
 
-Protection is controlled by the `PROTECTION_ENABLED` environment variable. If it's set to `"false"`, the middleware lets everyone through — no password needed.
+Set `PROTECTION_ENABLED=false` as a Vercel env var. The middleware checks this and passes all requests through.
 
 1. Go to **vercel.com** → your project → **Settings** → **Environment Variables**
 2. Add: `PROTECTION_ENABLED` = `false`
@@ -448,14 +448,29 @@ To turn it back on, change to `true` or delete the variable.
 
 ### Vite / non-Next.js projects
 
-Remove or comment out the `redirects` block in your `vercel.json` and redeploy. Without the redirect, visitors go straight to your app.
+The auth gate is in `vercel.json` redirects, not middleware. Remove the `redirects` block to make the site public:
+
+```json
+{
+  "redirects": [
+    {
+      "source": "/((?!api|login\\.html|assets|images|favicon\\.ico|\\.js$|\\.css$).*)",
+      "missing": [{ "type": "cookie", "key": "auth" }],
+      "destination": "/login.html",
+      "permanent": false
+    }
+  ]
+}
+```
+
+**Remove this block → site is public. Add it back → site is protected.**
 
 ### Recommended setup
 
-| Environment | `PROTECTION_ENABLED` | Result |
+| Environment | Protection | How |
 |---|---|---|
-| Preview deployments | `true` (or don't set it) | Password required |
-| Production (custom domain) | `false` | Public, no password |
+| Preview deployments | ON | Keep `redirects` in `vercel.json` / `PROTECTION_ENABLED=true` |
+| Production (custom domain) | OFF | Remove `redirects` / `PROTECTION_ENABLED=false` |
 
 Vercel lets you set different env var values per environment (Production vs Preview vs Development). Use this to keep previews protected while production is open.
 
@@ -482,16 +497,102 @@ When a user logs in with Acme's password, `getCurrentClient()` returns `{ name: 
 
 ---
 
+## Known Issues / Gotchas
+
+### 1. `bcryptjs` must be a direct dependency
+
+Vercel's serverless function bundler may not resolve `bcryptjs` from nested `node_modules`. Consumers must install it directly:
+
+```bash
+npm install github:CrystinVW/vercel-protection-core bcryptjs
+```
+
+### 2. Vite projects: `src/pages/` conflicts with Next.js
+
+If using middleware with a Vite project that has `src/pages/`, Next.js will error with `pages and app directories should be under the same folder`. Add a `next.config.js` with:
+
+```js
+const nextConfig = {
+  pageExtensions: ['page.tsx', 'page.ts', 'page.jsx', 'page.js'],
+};
+export default nextConfig;
+```
+
+**Better approach:** Don't use middleware at all in Vite projects — use the Vercel-native setup (see [Vite section](#vite--react--any-non-nextjs-project) above).
+
+### 3. Vite projects: Vercel strips dependencies from API functions
+
+Vercel's Vite adapter re-bundles `api/` functions and tree-shakes out dependencies. Use prebuilt deployment:
+
+```bash
+VERCEL_ENV=production npx vercel build --prod
+
+for fn in login logout; do
+  FUNC_DIR=".vercel/output/functions/api/${fn}.func"
+  mkdir -p "$FUNC_DIR/node_modules/@vercel-protection/core"
+  mkdir -p "$FUNC_DIR/node_modules/bcryptjs"
+  cp -r node_modules/@vercel-protection/core/dist "$FUNC_DIR/node_modules/@vercel-protection/core/"
+  cp node_modules/@vercel-protection/core/package.json "$FUNC_DIR/node_modules/@vercel-protection/core/"
+  cp -r node_modules/bcryptjs/* "$FUNC_DIR/node_modules/bcryptjs/"
+done
+
+vercel deploy --prebuilt --prod
+```
+
+### 4. `"type": "module"` projects require ESM API handlers
+
+Projects with `"type": "module"` in `package.json` must use ESM imports in `api/` files:
+
+```js
+import { createLoginHandler } from "@vercel-protection/core/vercel";
+const handler = createLoginHandler();
+export default handler;
+```
+
+Not CJS (`require` / `module.exports`).
+
+### 5. Setting `CLIENT_PASSWORDS` — bcrypt `$` characters
+
+Bcrypt hashes contain `$` which shells interpret. Use `printf`, not `echo`:
+
+```bash
+HASH=$(node -e "console.log(require('bcryptjs').hashSync('your-password', 10))")
+printf '{"default":{"password":"%s","role":"admin"}}' "$HASH" | vercel env add CLIENT_PASSWORDS production
+```
+
+### 6. Do NOT set `"framework": "vite"` in `vercel.json`
+
+This causes Vercel to re-bundle API functions with its Vite adapter, stripping dependencies. Use `"framework": null` or omit it entirely.
+
+---
+
+## Files Consumers Need to Create
+
+| File | Purpose | Required for |
+|---|---|---|
+| `api/login.js` | Serverless function — calls `createLoginHandler()` | Vite |
+| `api/logout.js` | Serverless function — calls `createLogoutHandler()` | Vite |
+| `public/login.html` | Standalone password form that POSTs to `/api/login` | Vite |
+| `vercel.json` | Rewrites for SPA routing + redirects for auth gating | Vite |
+| `middleware.ts` | Calls `protectMiddleware()` | Next.js only |
+| `app/api/login/route.ts` | API route — calls `handleLogin()` | Next.js only |
+| `app/api/logout/route.ts` | API route — calls `handleLogout()` | Next.js only |
+| `app/login/page.tsx` | Login page component | Next.js only |
+
+---
+
 ## Troubleshooting
 
 | Error | Cause | Fix |
 |---|---|---|
 | `MIDDLEWARE_INVOCATION_FAILED` | `middleware.ts` exists in a Vite project | Delete `middleware.ts` — use `vercel.json` redirects instead |
-| `FUNCTION_INVOCATION_FAILED` | Dependencies not bundled in serverless functions | Use prebuilt deploy with manual dep injection (Step 7 above) |
-| `does not provide an export named 'compare'` | Old package version with CJS/ESM bug | `rm -rf node_modules package-lock.json && npm install` |
+| `FUNCTION_INVOCATION_FAILED` | Dependencies not bundled into function | Use prebuilt deploy with manual dep injection (see [#3](#3-vite-projects-vercel-strips-dependencies-from-api-functions) above) |
+| `does not provide an export named 'compare'` | Old package version — bcryptjs CJS/ESM mismatch | `rm -rf node_modules package-lock.json && npm install` |
 | `CLIENT_PASSWORDS is not set` | Missing env var on Vercel | `vercel env add CLIENT_PASSWORDS production` |
-| `CLIENT_PASSWORDS is not valid JSON` | `$` chars mangled by shell | Use `printf` instead of `echo` when setting the env var |
+| `CLIENT_PASSWORDS is not valid JSON` | Shell mangled `$` in bcrypt hash | Use `printf` not `echo` (see [#5](#5-setting-client_passwords--bcrypt--characters) above) |
 | `Cannot find module '@vercel-protection/core/vercel'` | Old cached package version | `rm -rf node_modules package-lock.json && npm install` |
+| `pages and app directories should be under the same folder` | `src/pages/` conflicts with `app/` | Add `pageExtensions` to `next.config.js` (see [#2](#2-vite-projects-srcpages-conflicts-with-nextjs) above) |
+| Site redirects to login even with `PROTECTION_ENABLED=false` | Vite projects use `vercel.json` redirects, not middleware | Remove `redirects` block from `vercel.json` |
 
 ---
 
