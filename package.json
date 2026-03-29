@@ -1,0 +1,40 @@
+{
+  "name": "@vercel-protection/core",
+  "version": "0.1.0",
+  "description": "Reusable authentication layer for Vercel deployments with per-client routing and white-label support",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware.d.ts",
+      "import": "./dist/middleware.mjs",
+      "require": "./dist/middleware.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "prepare": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "tsup": "^8.5.1",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0"
+  },
+  "license": "MIT"
+}
