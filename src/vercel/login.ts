@@ -30,10 +30,11 @@ export function createLoginHandler(options?: HandleLoginOptions) {
     }
 
     const ip =
-      (typeof req.headers["x-forwarded-for"] === "string"
+      (typeof req.headers?.["x-forwarded-for"] === "string"
         ? req.headers["x-forwarded-for"].split(",")[0]?.trim()
         : undefined) ||
-      req.headers["x-real-ip"] ||
+      req.headers?.["x-real-ip"] ||
+      req.socket?.remoteAddress ||
       "unknown";
 
     const limiter = getRateLimiter(windowMs, max);

@@ -100,7 +100,7 @@ function createLoginHandler(options) {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
-    const ip = (typeof req.headers["x-forwarded-for"] === "string" ? req.headers["x-forwarded-for"].split(",")[0]?.trim() : void 0) || req.headers["x-real-ip"] || "unknown";
+    const ip = (typeof req.headers?.["x-forwarded-for"] === "string" ? req.headers["x-forwarded-for"].split(",")[0]?.trim() : void 0) || req.headers?.["x-real-ip"] || req.socket?.remoteAddress || "unknown";
     const limiter = getRateLimiter(windowMs, max);
     if (limiter.check(ip)) {
       res.setHeader("Retry-After", String(Math.ceil(windowMs / 1e3)));
