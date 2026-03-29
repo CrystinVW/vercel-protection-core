@@ -1,4 +1,5 @@
-import { compare } from "bcryptjs";
+import bcrypt from "bcryptjs";
+const { compare } = bcrypt;
 import type { ClientInfo, ClientPasswordsMap } from "./types";
 import { DEFAULT_COOKIE_NAME } from "./constants";
 

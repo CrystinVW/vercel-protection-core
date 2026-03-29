@@ -1,7 +1,9 @@
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -15,6 +17,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/vercel/index.ts
@@ -27,7 +37,7 @@ __export(vercel_exports, {
 module.exports = __toCommonJS(vercel_exports);
 
 // src/client.ts
-var import_bcryptjs = require("bcryptjs");
+var import_bcryptjs = __toESM(require("bcryptjs"));
 
 // src/constants.ts
 var DEFAULT_COOKIE_NAME = "auth";
@@ -36,6 +46,7 @@ var DEFAULT_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1e3;
 var DEFAULT_RATE_LIMIT_MAX = 5;
 
 // src/client.ts
+var { compare } = import_bcryptjs.default;
 async function getClientFromPassword(password) {
   const raw = process.env.CLIENT_PASSWORDS;
   if (!raw) {
@@ -49,7 +60,7 @@ async function getClientFromPassword(password) {
   }
   let matched = null;
   for (const [clientName, entry] of Object.entries(map)) {
-    const isMatch = await (0, import_bcryptjs.compare)(password, entry.password);
+    const isMatch = await compare(password, entry.password);
     if (isMatch && !matched) {
       matched = { name: clientName, role: entry.role };
     }

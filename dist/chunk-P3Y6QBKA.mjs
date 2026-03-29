@@ -4,7 +4,8 @@ import {
 } from "./chunk-ZV4JSRP7.mjs";
 
 // src/client.ts
-import { compare } from "bcryptjs";
+import bcrypt from "bcryptjs";
+var { compare } = bcrypt;
 async function getClientFromPassword(password) {
   const raw = process.env.CLIENT_PASSWORDS;
   if (!raw) {
